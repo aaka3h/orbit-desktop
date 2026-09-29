@@ -8,7 +8,18 @@ import type { Settings } from '../shared/types';
 const signal=()=>new AbortController().signal;
 async function fixture(t:any){const root=await fs.mkdtemp(path.join(os.tmpdir(),'orbit-test-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));return root;}
 const settings=(workspace:string):Settings=>({workspace,provider:{kind:'demo',model:'demo',baseUrl:''},maxSteps:8,allowCommands:false,allowComputer:false,pythonPath:'python3'});
-test('file paths reject traversal, absolute paths, credential files, and symlinks',async t=>{const root=await fixture(t);await fs.writeFile(path.join(root,'hello.txt'),'hello');assert.equal(await workspacePath(root,'hello.txt'),path.join(root,'hello.txt'));for(const p of ['../outside','/etc/passwd','.env','.env.local','.ssh/key'])await assert.rejects(workspacePath(root,p,true));await fs.symlink(os.tmpdir(),path.join(root,'linked'),process.platform==='win32'?'junction':'dir');await assert.rejects(workspacePath(root,'linked/secret',true),/Symbolic/);});
+test('file paths reject traversal, absolute paths, credential files, and symlinks',async t=>{const root=await fixture(t);await fs.writeFile(path.join(root,'hello.txt'),'hello');assert.equal(await workspacePath(root,'hello.txt'),await fs.realpath(path.join(root,'hello.txt')));for(const p of ['../outside','/etc/passwd','.env','.env.local','.ssh/key'])await assert.rejects(workspacePath(root,p,true));await fs.symlink(os.tmpdir(),path.join(root,'linked'),process.platform==='win32'?'junction':'dir');await assert.rejects(workspacePath(root,'linked/secret',true),/Symbolic/);});
+test('workspace root aliases resolve canonically while nested symlinks remain blocked',async t=>{
+ const root=await fixture(t);const actual=path.join(root,'actual');const alias=path.join(root,'selected-workspace');
+ await fs.mkdir(actual);await fs.writeFile(path.join(actual,'hello.txt'),'hello');
+ const canonical=await fs.realpath(actual);const linkType=process.platform==='win32'?'junction':'dir';
+ await fs.symlink(canonical,alias,linkType);
+ assert.equal(await workspacePath(alias,'hello.txt'),path.join(canonical,'hello.txt'));
+ assert.equal(await workspacePath(alias,'new.txt',true),path.join(canonical,'new.txt'));
+ await fs.symlink(canonical,path.join(actual,'nested-link'),linkType);
+ await assert.rejects(workspacePath(alias,'nested-link/hello.txt'),/Symbolic/);
+ await assert.rejects(workspacePath(alias,'../outside',true),/outside/);
+});
 test('hard links cannot be written through file tools',async t=>{const root=await fixture(t);await fs.writeFile(path.join(root,'original'),'unchanged');await fs.link(path.join(root,'original'),path.join(root,'alias'));await assert.rejects(workspacePath(root,'alias',true),/Hard-linked/);});
 test('nested write/read works, hidden credentials omitted from list',async t=>{const root=await fixture(t);const s=settings(root);await executeTool({id:'1',name:'write_file',arguments:{path:'docs/note.md',content:'# Hello'}},s,signal(),'');assert.equal((await executeTool({id:'2',name:'read_file',arguments:{path:'docs/note.md'}},s,signal(),'')).content,'# Hello');await fs.writeFile(path.join(root,'.env'),'TOKEN=secret');const listed=await executeTool({id:'3',name:'list_files',arguments:{path:'.'}},s,signal(),'');assert.ok(!listed.content.includes('.env'));});
 test('disabled privileged tools cannot execute and all external effects require approvals',async t=>{const root=await fixture(t);for(const name of ['write_file','run_command','fetch_url','computer'])assert.ok(requiresApproval(name));assert.ok(!availableTools(settings(root)).some(t=>t.name==='computer'||t.name==='run_command'));await assert.rejects(executeTool({id:'1',name:'run_command',arguments:{command:'echo unsafe'}},settings(root),signal(),''),/disabled/);await assert.rejects(executeTool({id:'2',name:'computer',arguments:{action:'click',x:1,y:1}},settings(root),signal(),''),/disabled/);});
