@@ -6,6 +6,21 @@ Orbit is a working first version of a desktop agent for **macOS, Windows, and Li
 
 It can inspect a folder, read and write text files, fetch web pages, run commands, and optionally use your mouse, keyboard, and screenshots. Its abilities depend on the model, installed tools, operating-system permissions, and your approvals. It does not promise to perform every possible task.
 
+## Download and install
+
+1. Open the [**Orbit v0.2.0 beta release**](https://github.com/aaka3h/orbit-desktop/releases/tag/v0.2.0). Sign in with a GitHub account that has access to this private repository.
+2. Under **Assets**, download the app for your computer:
+
+   - **Linux x64:** [Orbit-0.2.0.AppImage](https://github.com/aaka3h/orbit-desktop/releases/download/v0.2.0/Orbit-0.2.0.AppImage)
+   - **Windows x64:** [Orbit-Setup-0.2.0.exe](https://github.com/aaka3h/orbit-desktop/releases/download/v0.2.0/Orbit-Setup-0.2.0.exe)
+   - **Mac, Apple Silicon:** [Orbit-0.2.0-arm64-mac.zip](https://github.com/aaka3h/orbit-desktop/releases/download/v0.2.0/Orbit-0.2.0-arm64-mac.zip)
+   - **Mac, Intel:** [Orbit-0.2.0-mac.zip](https://github.com/aaka3h/orbit-desktop/releases/download/v0.2.0/Orbit-0.2.0-mac.zip)
+
+3. Follow the [**beginner installation guide**](INSTALL.md) for your operating system. Packaged apps do not require Node.js or npm. GitHub's automatic **Source code** downloads and the optional **Orbit-0.2.0-source.zip** contain code, not an installed app.
+4. For local AI, start Ollama, open Orbit's **Model Hub**, download a model that fits, select **Use this model**, and choose a workspace folder. The installation guide explains each step.
+
+These are **unsigned beta packages**; macOS packages are not notarized. Windows and macOS packages have not yet been tested on their native operating systems. The release also includes **SHA256SUMS.txt** for download verification.
+
 ## Screenshots
 
 **Dark workspace:** start a task, choose an AI connection, and select a working folder.
@@ -32,7 +47,7 @@ Model Hub shows detected hardware, available model files, download sizes, and me
 
 These screenshots were captured from the running Linux desktop app.
 
-## 1. Run the desktop app
+## 1. Run from source (optional)
 
 Install [Node.js 24 LTS](https://nodejs.org/) first. Open a terminal in this project folder and run:
 
