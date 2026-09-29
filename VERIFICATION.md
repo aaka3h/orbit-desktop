@@ -47,3 +47,13 @@ The local smoke script retains its strict final-answer assertion and now separat
 3. Run `xvfb-run -a node scripts/appearance-smoke.mjs` for themes, text size, real hardware, and live HF metadata. It requires internet for metadata, but downloads no models.
 4. With Ollama and `llama3.1:latest` available, run `npm run test:local`. The current model may fail the grounding assertion as documented above. `ORBIT_SMOKE_MODEL` selects a different installed tool-capable model; `ORBIT_SMOKE_TRACE` optionally writes a synthetic-fixture diagnostic trace.
 5. After Linux packaging, run `xvfb-run -a node scripts/package-smoke.mjs`.
+
+## 6. Post-release native build verification
+
+The [follow-up GitHub Actions run](https://github.com/aaka3h/orbit-desktop/actions/runs/36508556499) succeeded on Linux, Windows, and macOS at commit [3faae58](https://github.com/aaka3h/orbit-desktop/commit/3faae58056467a4a87a2685b232f78db9a5dccbd). Each operating system passed **80 automated tests** and its package build.
+
+The initial tag-triggered run passed on Linux but failed one test on Windows/macOS: the fixture compared a temporary path's spelling with its canonical path. Windows can expand a short username and macOS resolves `/var` to `/private/var`. The app correctly returned the canonical path. The test expectation was fixed and an alias/junction regression was added; application runtime code and published app binaries were unchanged.
+
+The `v0.2.0` tag and its source archive preserve the original release snapshot and original test expectation. Use the corrected `main` branch or the linked commit when running source tests on Windows/macOS. This follow-up verifies tests and package creation, not interactive installer execution, desktop control, or live model reliability on those systems.
+
+The separate Datadog workflow remains unconfigured: its run reports missing API/application keys (`DD_API_KEY` and `DD_APP_KEY`). That external integration is separate from the successful Desktop builds workflow.
