@@ -1,0 +1,28 @@
+import { contextBridge, ipcRenderer } from 'electron';
+import type { OrbitAPI, AgentEvent } from '../shared/types';
+const api:OrbitAPI={
+ hardware:()=>ipcRenderer.invoke('orbit:hardware'),
+ searchModels:query=>ipcRenderer.invoke('orbit:search-models',query),
+ modelFiles:repo=>ipcRenderer.invoke('orbit:model-files',repo),
+ downloadState:()=>ipcRenderer.invoke('orbit:download-state'),
+ downloadModel:input=>ipcRenderer.invoke('orbit:download-model',input),
+ cancelDownload:()=>ipcRenderer.invoke('orbit:cancel-download'),
+ onDownload:callback=>{const handler=(_event:Electron.IpcRendererEvent,data:import('../shared/types').ModelDownload)=>callback(data);ipcRenderer.on('orbit:download',handler);return()=>ipcRenderer.removeListener('orbit:download',handler);},
+ hfStatus:()=>ipcRenderer.invoke('orbit:hf-status'),
+ hfLogin:()=>ipcRenderer.invoke('orbit:hf-login'),
+ hfPoll:()=>ipcRenderer.invoke('orbit:hf-poll'),
+ hfCancel:()=>ipcRenderer.invoke('orbit:hf-cancel'),
+ bootstrap:()=>ipcRenderer.invoke('orbit:bootstrap'),
+ saveSettings:settings=>ipcRenderer.invoke('orbit:save-settings',settings),
+ chooseWorkspace:()=>ipcRenderer.invoke('orbit:choose-workspace'),
+ testConnection:config=>ipcRenderer.invoke('orbit:test-connection',config),
+ startRun:input=>ipcRenderer.invoke('orbit:start-run',input),
+ cancelRun:()=>ipcRenderer.invoke('orbit:cancel-run'),
+ approve:input=>ipcRenderer.invoke('orbit:approve',input),
+ deleteSession:id=>ipcRenderer.invoke('orbit:delete-session',id),
+ openExternal:url=>ipcRenderer.invoke('orbit:open-external',url),
+ codexLogin:()=>ipcRenderer.invoke('orbit:codex-login'),
+ codexStatus:()=>ipcRenderer.invoke('orbit:codex-status'),
+ onEvent:callback=>{const handler=(_event:Electron.IpcRendererEvent,data:AgentEvent)=>callback(data);ipcRenderer.on('orbit:event',handler);return()=>ipcRenderer.removeListener('orbit:event',handler);}
+};
+contextBridge.exposeInMainWorld('orbit',api);
