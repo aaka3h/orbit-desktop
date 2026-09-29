@@ -1,0 +1,45 @@
+import {_electron as electron} from 'playwright';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const directory=await fs.mkdtemp(path.join(os.tmpdir(),'orbit-capability-ui-'));
+const env={...process.env,ORBIT_TEST_DATA_DIR:directory};delete env.ELECTRON_RUN_AS_NODE;
+const app=await electron.launch({args:['.'],env});const errors=[];
+try{
+ const page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
+ await page.getByRole('heading',{name:'What can we get done?'}).waitFor();
+ await page.evaluate(async()=>{const boot=await window.orbit.bootstrap();await window.orbit.saveSettings({...boot.settings,theme:'dark'});});
+ await page.reload();await page.getByRole('heading',{name:'What can we get done?'}).waitFor();
+ await page.screenshot({path:'docs/screenshots/workspace-dark.png'});
+ await page.getByRole('button',{name:'Agents & skills',exact:true}).click();
+ await page.getByRole('heading',{name:'Shopping assistant',exact:true}).waitFor();
+ await page.screenshot({path:'docs/screenshots/agents-skills.png'});
+ await page.getByRole('tab',{name:'Skills',exact:true}).click();await page.getByRole('button',{name:'New skill',exact:true}).click();
+ await page.getByLabel('Name',{exact:true}).fill('Beginner explanation');await page.getByLabel('Description',{exact:true}).fill('Simple steps');await page.getByLabel('Instructions',{exact:true}).fill('Explain each task in numbered steps.');await page.getByRole('button',{name:'Save skill',exact:true}).click();
+ await page.getByRole('heading',{name:'Beginner explanation',exact:true}).waitFor();
+ let catalog=await page.evaluate(()=>window.orbit.capabilities());const skill=catalog.skills.find(s=>s.name==='Beginner explanation');assert.ok(skill);
+ await page.getByRole('tab',{name:'Bots',exact:true}).click();await page.getByRole('button',{name:'New bot',exact:true}).click();
+ await page.getByLabel('Name',{exact:true}).fill('My helper');await page.getByLabel('Description',{exact:true}).fill('Beginner helper');await page.getByLabel('Instructions',{exact:true}).fill('Help with the task.');await page.getByLabel('Beginner explanation',{exact:true}).check();await page.getByRole('button',{name:'Save bot',exact:true}).click();
+ await page.getByRole('heading',{name:'My helper',exact:true}).waitFor();catalog=await page.evaluate(()=>window.orbit.capabilities());assert.ok(catalog.bots.find(b=>b.name==='My helper').skillIds.includes(skill.id));
+ await page.getByRole('tab',{name:'Plugins',exact:true}).click();
+ await app.evaluate(({dialog},filename)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filename]});},path.resolve('examples/productivity.orbit-plugin.json'));
+ await page.getByRole('button',{name:'Import plugin',exact:true}).click();await page.getByText('I have reviewed these bot and skill instructions',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Install plugin',exact:true}).isEnabled(),false);
+ await page.getByLabel('I have reviewed these bot and skill instructions',{exact:true}).check();await page.getByRole('button',{name:'Install plugin',exact:true}).click();
+ await page.getByLabel('Enabled',{exact:true}).waitFor();assert.equal(await page.getByLabel('Enabled',{exact:true}).isChecked(),false);
+ await page.getByLabel('Enabled',{exact:true}).check();await page.getByText('Plugin enabled. Its bots and skills are now available.',{exact:true}).waitFor();
+ catalog=await page.evaluate(()=>window.orbit.capabilities());assert.ok(catalog.bots.some(b=>b.pluginId==='productivity-starter'));
+ await page.getByRole('tab',{name:'Browser',exact:true}).click();await page.getByRole('switch',{name:'Allow browser control',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Open browser',exact:true}).isEnabled(),false);
+ await page.getByRole('switch',{name:'Allow browser control',exact:true}).click();await page.getByRole('button',{name:'Save browser setup',exact:true}).click();
+ await page.getByText('Browser setup saved. Open the browser when you are ready.',{exact:true}).waitFor();assert.equal((await page.evaluate(()=>window.orbit.bootstrap())).settings.allowBrowser,true);
+ await page.getByRole('button',{name:'Close agents and skills',exact:true}).click();
+ await page.reload();await page.getByRole('heading',{name:'What can we get done?'}).waitFor();catalog=await page.evaluate(()=>window.orbit.capabilities());assert.ok(catalog.skills.some(s=>s.id===skill.id));assert.ok(catalog.plugins[0].enabled);
+ // Synthetic approval events exercise UI only; no browser or purchase is performed.
+ await app.evaluate(({BrowserWindow,ipcMain})=>{globalThis.orbitTestApprovals=[];ipcMain.removeHandler('orbit:approve');ipcMain.handle('orbit:approve',(_event,input)=>{globalThis.orbitTestApprovals.push(input);});const wc=BrowserWindow.getAllWindows()[0].webContents;wc.send('orbit:event',{type:'message',runId:'fixture',message:{id:'fixture-message',role:'assistant',content:'Review this synthetic checkout.',createdAt:new Date().toISOString()}});wc.send('orbit:event',{type:'approval',runId:'fixture',approvalId:'fixture-approval',kind:'purchase',reason:'Synthetic checkout only',details:'Test phone · 100 test credits',call:{id:'fixture-call',name:'browser',arguments:{action:'click',ref:'fixture'}}});});
+ await page.getByRole('button',{name:'Confirm this purchase',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Confirm this purchase',exact:true}).isEnabled(),false);
+ await page.getByLabel('I confirm this purchase or payment',{exact:true}).check();await page.getByRole('button',{name:'Confirm this purchase',exact:true}).click();
+ assert.deepEqual(await app.evaluate(()=>globalThis.orbitTestApprovals),[{approvalId:'fixture-approval',approved:true,confirmedPurchase:true}]);
+ assert.deepEqual(errors,[]);console.log('Capabilities UI passed: real skill/bot creation, plugin review/install/enable, browser settings, persisted library, purchase confirmation UI and screenshots.');
+}finally{await app.close();await fs.rm(directory,{recursive:true,force:true});}

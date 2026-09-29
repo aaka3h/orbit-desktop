@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import assert from 'node:assert/strict';
+const version=JSON.parse(await fs.readFile('package.json','utf8')).version;
 const root=await fs.mkdtemp(path.join(os.tmpdir(),'orbit-smoke-'));
 const workspace=path.join(root,'workspace');await fs.mkdir(workspace);
 const env={...process.env,ORBIT_TEST_DATA_DIR:path.join(root,'profile')};delete env.ELECTRON_RUN_AS_NODE;
@@ -14,7 +15,7 @@ try {
  await page.getByRole('heading',{name:'What can we get done?'}).waitFor();
  await page.waitForTimeout(250);
  await page.screenshot({path:'../orbit-home.png'});
- const boot=await page.evaluate(()=>window.orbit.bootstrap());assert.equal(boot.version,'0.2.0');
+ const boot=await page.evaluate(()=>window.orbit.bootstrap());assert.equal(boot.version,version);
  await page.evaluate(async(workspace)=>{const boot=await window.orbit.bootstrap();await window.orbit.saveSettings({...boot.settings,workspace,provider:{kind:'demo',model:'orbit-demo',baseUrl:''}});},workspace);
  await page.reload();await page.waitForFunction(()=>window.orbit);
  await page.getByRole('textbox',{name:'Tell Orbit what you want to do'}).fill('Show me the demo');await page.getByRole('button',{name:'Send task',exact:true}).click();

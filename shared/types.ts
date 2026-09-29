@@ -1,7 +1,17 @@
 export type ProviderKind = 'ollama' | 'openai' | 'anthropic' | 'gemini' | 'compatible' | 'demo' | 'codex' | 'huggingface';
 export interface ProviderConfig { kind: ProviderKind; model: string; baseUrl: string; apiKey?: string; hasKey?: boolean }
 export type ThemePreference = 'system' | 'light' | 'dark';
-export interface Settings { provider: ProviderConfig; workspace: string; maxSteps: number; allowCommands: boolean; allowComputer: boolean; pythonPath: string; theme?: ThemePreference; textSize?: 'normal' | 'large' | 'extra-large' }
+export type ToolGroup = 'files' | 'web' | 'browser' | 'commands' | 'computer';
+export type BrowserChannel = 'chrome' | 'msedge' | 'chromium';
+export interface Settings { provider: ProviderConfig; workspace: string; maxSteps: number; allowCommands: boolean; allowComputer: boolean; pythonPath: string; theme?: ThemePreference; textSize?: 'normal' | 'large' | 'extra-large'; allowBrowser?: boolean; browserChannel?: BrowserChannel; selectedBotId?: string; enabledSkillIds?: string[]; enabledPluginIds?: string[] }
+export interface SkillDefinition { id: string; name: string; description: string; instructions: string; source: 'builtin' | 'user' | 'plugin'; pluginId?: string }
+export interface BotDefinition { id: string; name: string; description: string; instructions: string; skillIds: string[]; tools: ToolGroup[]; source: 'builtin' | 'user' | 'plugin'; pluginId?: string }
+export interface PluginSummary { id: string; name: string; description: string; version: string; skillIds: string[]; botIds: string[]; enabled: boolean }
+export interface CapabilityCatalog { skills: SkillDefinition[]; bots: BotDefinition[]; plugins: PluginSummary[] }
+export interface SkillInput { id?: string; name: string; description: string; instructions: string }
+export interface BotInput { id?: string; name: string; description: string; instructions: string; skillIds: string[]; tools: ToolGroup[] }
+export interface PluginPreview { ticket: string; name: string; description: string; version: string; skills: SkillDefinition[]; bots: BotDefinition[] }
+export interface BrowserStatus { running: boolean; channel?: BrowserChannel; tabs: { id: string; title: string; url: string }[] }
 export interface GPUInfo { name: string; vendor: string; memoryBytes: number | null; unified: boolean }
 export interface HardwareInfo { platform: string; arch: string; cpu: string; logicalCores: number; totalMemoryBytes: number; availableMemoryBytes: number; gpus: GPUInfo[]; notes: string[] }
 export interface ModelFit { rating: 'comfortable' | 'tight' | 'too-large' | 'unknown'; estimatedMemoryBytes: number | null; backend: string; explanation: string }
@@ -18,11 +28,22 @@ export type AgentEvent =
   | { type: 'status'; runId: string; message: string }
   | { type: 'message'; runId: string; message: Message }
   | { type: 'tool'; runId: string; call: ToolCall; status: 'running' | 'done' | 'denied' | 'error'; result?: string }
-  | { type: 'approval'; runId: string; approvalId: string; call: ToolCall; reason: string }
+  | { type: 'approval'; runId: string; approvalId: string; call: ToolCall; reason: string; kind?: 'browser' | 'purchase'; details?: string }
   | { type: 'done'; runId: string; session: Session }
   | { type: 'error'; runId: string; message: string };
 export interface Bootstrap { settings: Settings; sessions: Session[]; platform: string; secureStorage: boolean; version: string }
 export interface OrbitAPI {
+  capabilities(): Promise<CapabilityCatalog>;
+  saveSkill(input: SkillInput): Promise<CapabilityCatalog>;
+  deleteSkill(id: string): Promise<CapabilityCatalog>;
+  saveBot(input: BotInput): Promise<CapabilityCatalog>;
+  deleteBot(id: string): Promise<CapabilityCatalog>;
+  previewPlugin(): Promise<PluginPreview | null>;
+  installPlugin(ticket: string): Promise<CapabilityCatalog>;
+  removePlugin(id: string): Promise<CapabilityCatalog>;
+  browserStatus(): Promise<BrowserStatus>;
+  openBrowser(): Promise<BrowserStatus>;
+  closeBrowser(): Promise<BrowserStatus>;
   hfStatus(): Promise<{ configured: boolean; connected: boolean; username?: string }>;
   hfLogin(): Promise<{ verificationUrl: string; userCode: string; expiresAt: number; intervalSeconds: number }>;
   hfPoll(): Promise<{ state: 'pending' | 'connected' | 'expired'; username?: string }>;
@@ -42,7 +63,7 @@ export interface OrbitAPI {
   testConnection(config: ProviderConfig): Promise<{ ok: boolean; message: string; models?: string[] }>;
   startRun(input: { sessionId?: string; prompt: string }): Promise<{ runId: string; sessionId: string }>;
   cancelRun(): Promise<void>;
-  approve(input: { approvalId: string; approved: boolean }): Promise<void>;
+  approve(input: { approvalId: string; approved: boolean; confirmedPurchase?: boolean }): Promise<void>;
   deleteSession(id: string): Promise<void>;
   openExternal(url: string): Promise<void>;
   onEvent(callback: (event: AgentEvent) => void): () => void;

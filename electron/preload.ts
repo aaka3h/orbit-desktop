@@ -1,6 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { OrbitAPI, AgentEvent } from '../shared/types';
 const api:OrbitAPI={
+ capabilities:()=>ipcRenderer.invoke('orbit:capabilities'),
+ saveSkill:input=>ipcRenderer.invoke('orbit:save-skill',input),
+ deleteSkill:id=>ipcRenderer.invoke('orbit:delete-skill',id),
+ saveBot:input=>ipcRenderer.invoke('orbit:save-bot',input),
+ deleteBot:id=>ipcRenderer.invoke('orbit:delete-bot',id),
+ previewPlugin:()=>ipcRenderer.invoke('orbit:preview-plugin'),
+ installPlugin:ticket=>ipcRenderer.invoke('orbit:install-plugin',ticket),
+ removePlugin:id=>ipcRenderer.invoke('orbit:remove-plugin',id),
+ browserStatus:()=>ipcRenderer.invoke('orbit:browser-status'),
+ openBrowser:()=>ipcRenderer.invoke('orbit:open-browser'),
+ closeBrowser:()=>ipcRenderer.invoke('orbit:close-browser'),
  hardware:()=>ipcRenderer.invoke('orbit:hardware'),
  searchModels:query=>ipcRenderer.invoke('orbit:search-models',query),
  modelFiles:repo=>ipcRenderer.invoke('orbit:model-files',repo),

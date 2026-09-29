@@ -10,33 +10,51 @@ import { searchModels, modelFiles, pullModel } from './hub';
 import { chooseRecommendedFile, compareRecommendedModels } from '../shared/models';
 import { HFAuth } from './hf-auth';
 import { runAgent } from './agent';
-import { executeTool } from './tools';
+import { executeTool, toolSpecs } from './tools';
+import { CapabilityLibrary } from './capabilities';
+import { BrowserController, browserToolSpec } from './browser';
+import { dispatchTool, permittedTools, assertApprovalConfirmation, type ApprovalDetails } from './execution';
 import { testConnection } from './providers';
 import { codexLogin, codexStatus, runCodex, closeCodex } from './codex';
 import type { AgentEvent, Settings, Session, ToolCall } from '../shared/types';
 const providerSchema=z.object({kind:z.enum(['ollama','openai','anthropic','gemini','compatible','demo','codex','huggingface']),model:z.string().max(200),baseUrl:z.string().max(2000),apiKey:z.string().max(4096).optional(),hasKey:z.boolean().optional()});
-const settingsSchema=z.object({provider:providerSchema,workspace:z.string().max(4096),maxSteps:z.number().int().min(1).max(40),allowCommands:z.boolean(),allowComputer:z.boolean(),pythonPath:z.string().min(1).max(4096),theme:z.enum(['system','light','dark']).default('system'),textSize:z.enum(['normal','large','extra-large']).default('normal')});
+const settingsSchema=z.object({provider:providerSchema,workspace:z.string().max(4096),maxSteps:z.number().int().min(1).max(40),allowCommands:z.boolean(),allowComputer:z.boolean(),pythonPath:z.string().min(1).max(4096),theme:z.enum(['system','light','dark']).default('system'),textSize:z.enum(['normal','large','extra-large']).default('normal'),allowBrowser:z.boolean().default(false),browserChannel:z.enum(['chrome','msedge','chromium']).default('chrome'),selectedBotId:z.string().max(150).default('builtin:general'),enabledSkillIds:z.array(z.string().max(150)).max(100).default([]),enabledPluginIds:z.array(z.string().max(64)).max(25).default([])});
 let window:BrowserWindow;let store:Store;let active:{id:string;sessionId:string;controller:AbortController}|null=null;
-let startingRun=false;
+let startingRun=false;let mutation=false;
 let hfAuth:HFAuth;
+let library:CapabilityLibrary;
+let browser:BrowserController;
 let download:AbortController|null=null;
 let lastDownload:import('../shared/types').ModelDownload|null=null;
 const downloadable=new Map<string,{bytes:number;expires:number}>();
-const approvals=new Map<string,{runId:string;resolve:(yes:boolean)=>void}>();
+const approvals=new Map<string,{runId:string;kind?:'browser'|'purchase';resolve:(yes:boolean)=>void}>();
 const devURL=!app.isPackaged&&process.env.ORBIT_DEV_URL==='http://127.0.0.1:5173'?process.env.ORBIT_DEV_URL:undefined;
 const uiFile=path.join(__dirname,'../dist/index.html');
 function emit(event:AgentEvent){if(window&&!window.isDestroyed())window.webContents.send('orbit:event',event);}
-function approve(runId:string,call:ToolCall,reason:string,signal:AbortSignal):Promise<boolean>{
+function approve(runId:string,call:ToolCall,reason:string,signal:AbortSignal,details?:ApprovalDetails):Promise<boolean>{
  if(signal.aborted)return Promise.resolve(false);
- return new Promise(resolve=>{const approvalId=randomUUID();const abort=()=>finish(false);const finish=(yes:boolean)=>{signal.removeEventListener('abort',abort);approvals.delete(approvalId);resolve(yes);};approvals.set(approvalId,{runId,resolve:finish});signal.addEventListener('abort',abort,{once:true});emit({type:'approval',runId,approvalId,call,reason});});
+ return new Promise(resolve=>{const approvalId=randomUUID();const abort=()=>finish(false);const finish=(yes:boolean)=>{signal.removeEventListener('abort',abort);approvals.delete(approvalId);resolve(yes);};approvals.set(approvalId,{runId,kind:details?.kind,resolve:finish});signal.addEventListener('abort',abort,{once:true});emit({type:'approval',runId,approvalId,call,reason,...details});});
 }
 const allowedLinks=['huggingface.co','claude.ai','ollama.com','docs.ollama.com','platform.openai.com','developers.openai.com','learn.chatgpt.com','chatgpt.com','openai.com','auth.openai.com','auth0.openai.com','claude.com','code.claude.com','console.anthropic.com','platform.claude.com','ai.google.dev','aistudio.google.com','gemini.google.com','antigravity.google','developers.google.com','www.python.org','pyautogui.readthedocs.io'];
 async function external(raw:string){const url=new URL(raw);if(url.protocol!=='https:'||url.username||url.password||!allowedLinks.includes(url.hostname))throw new Error('Only supported provider documentation and sign-in links can be opened.');await shell.openExternal(url.toString());}
-function handle(channel:string,fn:(...args:any[])=>unknown){ipcMain.handle(channel,(event,...args)=>{const expected=devURL?`${devURL}/`:pathToFileURL(uiFile).href;if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame||event.senderFrame.url.split('#')[0]!==expected)throw new Error('Untrusted application window.');return fn(...args);});}
+function handle(channel:string,fn:(...args:any[])=>unknown){ipcMain.handle(channel,(event,...args)=>{const expected=devURL?`${devURL}/`:pathToFileURL(uiFile).href;if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame||event.senderFrame.url.split('#')[0]!==expected)throw new Error('Untrusted application window.');const mutates=['orbit:save-settings','orbit:save-skill','orbit:delete-skill','orbit:save-bot','orbit:delete-bot','orbit:install-plugin','orbit:remove-plugin','orbit:open-browser','orbit:close-browser'].includes(channel);if(mutates){if(mutation||active||startingRun)throw new Error('Finish the current task or settings change first.');mutation=true;return Promise.resolve().then(()=>fn(...args)).finally(()=>{mutation=false;});}return fn(...args);});}
 function upsert(session:Session){session.updatedAt=new Date().toISOString();store.sessions=[session,...store.sessions.filter(s=>s.id!==session.id)].slice(0,100);}
+function idle(){if(active||startingRun)throw new Error('Stop the active task before changing its capabilities.');}
+async function libraryResult(){await store.saveSettings(library.normalize(store.settings));return library.catalog(store.settings);}
 function register(){
+ handle('orbit:capabilities',()=>library.catalog(store.settings));
+ handle('orbit:save-skill',async(raw:unknown)=>{idle();await library.saveSkill(raw);return libraryResult();});
+ handle('orbit:delete-skill',async(raw:unknown)=>{idle();await library.deleteSkill(z.string().max(150).parse(raw));return libraryResult();});
+ handle('orbit:save-bot',async(raw:unknown)=>{idle();await library.saveBot(raw,store.settings);return libraryResult();});
+ handle('orbit:delete-bot',async(raw:unknown)=>{idle();await library.deleteBot(z.string().max(150).parse(raw));return libraryResult();});
+ handle('orbit:preview-plugin',async()=>{idle();const selection=await dialog.showOpenDialog(window,{title:'Review an Orbit skill and bot plugin',properties:['openFile'],filters:[{name:'Orbit plugin JSON',extensions:['json']}]});idle();if(selection.canceled)return null;const file=await fs.open(selection.filePaths[0],'r');try{const stat=await file.stat();if(!stat.isFile()||stat.size>256*1024)throw new Error('Select a JSON plugin file no larger than 256 KB.');return library.preview(await file.readFile('utf8'));}finally{await file.close();}});
+ handle('orbit:install-plugin',async(raw:unknown)=>{idle();await library.install(z.string().uuid().parse(raw));return libraryResult();});
+ handle('orbit:remove-plugin',async(raw:unknown)=>{idle();await library.remove(z.string().max(64).parse(raw));return libraryResult();});
+ handle('orbit:browser-status',()=>browser.status());
+ handle('orbit:open-browser',async()=>{idle();if(!store.settings.allowBrowser)throw new Error('Enable browser access first.');return browser.open(store.settings.browserChannel??'chrome');});
+ handle('orbit:close-browser',async()=>{idle();await browser.close();return browser.status();});
  handle('orbit:bootstrap',()=>({settings:store.publicSettings(),sessions:store.sessions,platform:process.platform,secureStorage:store.secure(),version:app.getVersion()}));
- handle('orbit:save-settings',async(raw:unknown)=>{if(active||startingRun)throw new Error('Stop the active task before changing its settings.');const value=settingsSchema.parse(raw) as Settings;if(value.workspace){const resolved=await fs.realpath(value.workspace);if(!(await fs.stat(resolved)).isDirectory())throw new Error('Workspace must be a folder.');value.workspace=resolved;}nativeTheme.themeSource=value.theme??'system';return store.saveSettings(value);});
+ handle('orbit:save-settings',async(raw:unknown)=>{if(active||startingRun)throw new Error('Stop the active task before changing its settings.');const value=library.normalize(settingsSchema.parse(raw) as Settings);if(value.workspace){const resolved=await fs.realpath(value.workspace);if(!(await fs.stat(resolved)).isDirectory())throw new Error('Workspace must be a folder.');value.workspace=resolved;}if(!value.allowBrowser||value.browserChannel!==store.settings.browserChannel)await browser.close();nativeTheme.themeSource=value.theme??'system';return store.saveSettings(value);});
  handle('orbit:choose-workspace',async()=>{if(active||startingRun)throw new Error('Stop the task before changing workspace.');const result=await dialog.showOpenDialog(window,{title:'Choose the folder Orbit may work in',properties:['openDirectory','createDirectory']});return result.canceled?null:result.filePaths[0];});
  handle('orbit:test-connection',async(raw:unknown)=>{const p=providerSchema.parse(raw);if(p.kind==='codex'){const status=await codexStatus();return {ok:status.authenticated,message:status.authenticated?`Signed in${status.email?` as ${status.email}`:''}.`:'Install Codex CLI and sign in with ChatGPT.'};}return testConnection(store.configured({...store.settings,provider:p}).provider);});
  handle('orbit:hardware',()=>detectHardware());
@@ -53,23 +71,28 @@ function register(){
  handle('orbit:codex-status',()=>codexStatus());
  handle('orbit:open-external',(raw:unknown)=>external(z.string().max(4000).parse(raw)));
  handle('orbit:delete-session',async(raw:unknown)=>{const id=z.string().uuid().parse(raw);if(active?.sessionId===id)throw new Error('Stop the task before deleting it.');store.sessions=store.sessions.filter(s=>s.id!==id);await store.save();});
- handle('orbit:approve',(raw:unknown)=>{const {approvalId,approved}=z.object({approvalId:z.string().uuid(),approved:z.boolean()}).parse(raw);const pending=approvals.get(approvalId);if(!pending||pending.runId!==active?.id)throw new Error('This approval is no longer active.');pending.resolve(approved);});
- handle('orbit:cancel-run',()=>{active?.controller.abort();});
+ handle('orbit:approve',(raw:unknown)=>{const {approvalId,approved,confirmedPurchase}=z.object({approvalId:z.string().uuid(),approved:z.boolean(),confirmedPurchase:z.boolean().optional()}).parse(raw);const pending=approvals.get(approvalId);if(!pending||pending.runId!==active?.id)throw new Error('This approval is no longer active.');assertApprovalConfirmation(pending.kind,approved,confirmedPurchase);pending.resolve(approved);});
+ handle('orbit:cancel-run',()=>{active?.controller.abort();if(active)void browser.close();});
  handle('orbit:start-run',async(raw:unknown)=>{
-  if(active||startingRun)throw new Error('A task is already running.');startingRun=true;try{const input=z.object({sessionId:z.string().uuid().optional(),prompt:z.string().trim().min(1).max(32000)}).parse(raw);
+  if(active||startingRun||mutation)throw new Error('A task or settings change is already running.');startingRun=true;try{const input=z.object({sessionId:z.string().uuid().optional(),prompt:z.string().trim().min(1).max(32000)}).parse(raw);
   const settings=store.configured(store.settings);if(!settings.workspace)throw new Error('Choose a workspace folder in Settings first.');if(!(await fs.stat(settings.workspace)).isDirectory())throw new Error('Workspace folder is unavailable.');
+  const capabilities=library.compose(settings);const specs=permittedTools([...toolSpecs,browserToolSpec],capabilities.bot.tools,settings);
   const previous=input.sessionId?store.sessions.find(s=>s.id===input.sessionId):undefined;if(input.sessionId&&!previous)throw new Error('This task no longer exists.');
   const session:Session=previous??{id:randomUUID(),title:input.prompt.slice(0,60),messages:[],updatedAt:new Date().toISOString()};
   const userMessage={id:randomUUID(),role:'user' as const,content:input.prompt,createdAt:new Date().toISOString()};session.messages.push(userMessage);upsert(session);
-  const runId=randomUUID();const controller=new AbortController();active={id:runId,sessionId:session.id,controller};try{await store.save();}catch(e){active=null;throw e;}
+  const runId=randomUUID();const controller=new AbortController();controller.signal.addEventListener('abort',()=>{void browser.close();},{once:true});active={id:runId,sessionId:session.id,controller};try{await store.save();}catch(e){active=null;throw e;}
   setTimeout(async()=>{
    emit({type:'message',runId,message:userMessage});
    try{
+    const script=app.isPackaged?path.join(process.resourcesPath,'computer.py'):path.join(__dirname,'computer.py');
+    const dispatch=(call:ToolCall,signal:AbortSignal)=>dispatchTool(call,signal,{runId,settings,specs,computerScript:script,browser,emit,approve:(c,reason,sig,details)=>approve(runId,c,reason,sig,details),execute:async(c,s,sig,file)=>{if(c.name!=='computer')return executeTool(c,s,sig,file);window.hide();try{await new Promise(r=>setTimeout(r,400));sig.throwIfAborted();return await executeTool(c,s,sig,file);}finally{if(!window.isDestroyed())window.showInactive();}}});
+    if(settings.allowBrowser&&specs.some(t=>t.name==='browser')&&!(await browser.status()).running)await browser.open(settings.browserChannel??'chrome');
+    controller.signal.throwIfAborted();
     if(settings.provider.kind==='codex'){
-     const prompt=session.messages.slice(-20).map(m=>`${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
-     const text=await runCodex({prompt,workspace:settings.workspace,model:settings.provider.model||undefined,signal:controller.signal,onApproval:({call,reason})=>approve(runId,call,reason,controller.signal),onEvent:e=>{if(e.type==='tool')emit({type:'tool',runId,call:{id:e.id??randomUUID(),name:'codex',arguments:{detail:e.message}},status:e.status??'running'});else emit({type:'status',runId,message:e.type==='text'?'Codex is responding…':e.message});}});
+     const prompt=capabilities.instructions+'\n\nCONVERSATION:\n'+session.messages.slice(-20).map(m=>`${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+     const text=await runCodex({dynamicTools:specs,onToolCall:dispatch,prompt,workspace:settings.workspace,model:settings.provider.model||undefined,signal:controller.signal,onApproval:({call,reason})=>approve(runId,call,reason,controller.signal),onEvent:e=>{if(e.type==='tool')emit({type:'tool',runId,call:{id:e.id??randomUUID(),name:'codex',arguments:{detail:e.message}},status:e.status??'running'});else emit({type:'status',runId,message:e.type==='text'?'Codex is responding…':e.message});}});
      if(text){const message={id:randomUUID(),role:'assistant' as const,content:text,createdAt:new Date().toISOString()};session.messages.push(message);emit({type:'message',runId,message});}
-    }else await runAgent({runId,session,settings,signal:controller.signal,emit,approve:(call,reason)=>approve(runId,call,reason,controller.signal),computerScript:app.isPackaged?path.join(process.resourcesPath,'computer.py'):path.join(__dirname,'computer.py'),execute:async(call,settings,signal,script)=>{if(call.name!=='computer')return executeTool(call,settings,signal,script);window.hide();try{await new Promise(r=>setTimeout(r,400));signal.throwIfAborted();return await executeTool(call,settings,signal,script);}finally{if(!window.isDestroyed())window.showInactive();}}});
+    }else await runAgent({runId,session,settings,signal:controller.signal,emit,instructions:capabilities.instructions,specs,dispatch,approve:(call,reason)=>approve(runId,call,reason,controller.signal),computerScript:script});
    }catch(e){const message=controller.signal.aborted?'Task stopped. Completed actions remain applied.':(e as Error).message;const entry={id:randomUUID(),role:'assistant' as const,content:`${controller.signal.aborted?'Stopped':'Task error'}: ${message}`,createdAt:new Date().toISOString()};session.messages.push(entry);emit({type:'message',runId,message:entry});emit({type:'error',runId,message});}
    finally{for(const [id,pending]of approvals)if(pending.runId===runId){pending.resolve(false);approvals.delete(id);}upsert(session);try{await store.save();}catch(e){emit({type:'error',runId,message:`Could not save task history: ${(e as Error).message}`});}active=null;emit({type:'done',runId,session});}
   },50);
@@ -83,6 +106,6 @@ async function createWindow(){
  window.on('close',event=>{if(active){const answer=dialog.showMessageBoxSync(window,{type:'question',buttons:['Keep working','Stop and quit'],defaultId:0,cancelId:0,message:'A task is still running. Stop it and close Orbit?'});if(answer===0){event.preventDefault();return;}active.controller.abort();}});
  if(devURL)await window.loadURL(devURL);else await window.loadFile(uiFile);
 }
-app.whenReady().then(async()=>{if(process.env.ORBIT_TEST_DATA_DIR)app.setPath('userData',path.resolve(process.env.ORBIT_TEST_DATA_DIR));store=new Store(app.getPath('userData'));await store.load();nativeTheme.themeSource=store.settings.theme??'system';hfAuth=new HFAuth({clientId:process.env.ORBIT_HF_CLIENT_ID,getToken:()=>store.getSecret('huggingface'),saveToken:(token)=>store.setSecret('huggingface',token)});register();await createWindow();globalShortcut.register('CommandOrControl+Alt+Shift+O',()=>{active?.controller.abort();if(!window.isDestroyed())window.show();});app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)void createWindow();});});
+app.whenReady().then(async()=>{if(process.env.ORBIT_TEST_DATA_DIR)app.setPath('userData',path.resolve(process.env.ORBIT_TEST_DATA_DIR));store=new Store(app.getPath('userData'));await store.load();library=new CapabilityLibrary(app.getPath('userData'));await library.load();store.settings=library.normalize(store.settings);browser=new BrowserController(path.join(app.getPath('userData'),'browser-profile'));nativeTheme.themeSource=store.settings.theme??'system';hfAuth=new HFAuth({clientId:process.env.ORBIT_HF_CLIENT_ID,getToken:()=>store.getSecret('huggingface'),saveToken:(token)=>store.setSecret('huggingface',token)});register();await createWindow();globalShortcut.register('CommandOrControl+Alt+Shift+O',()=>{active?.controller.abort();if(!window.isDestroyed())window.show();});app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)void createWindow();});});
 app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit();});
-app.on('before-quit',()=>{active?.controller.abort();download?.abort();hfAuth?.cancel();closeCodex();});
+app.on('before-quit',()=>{active?.controller.abort();download?.abort();hfAuth?.cancel();void browser?.close();closeCodex();});

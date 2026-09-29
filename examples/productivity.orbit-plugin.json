@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "productivity-starter",
+  "name": "Productivity starter",
+  "description": "A beginner-friendly research skill and comparison bot. Contains instructions only.",
+  "version": "1.0.0",
+  "skills": [{"id":"compare","name":"Clear comparisons","description":"Compare three options against the user's priorities.","instructions":"Ask for missing priorities and budget. Research three suitable options using approved tools. Include source links and explain the main tradeoffs in plain language. State uncertainty. Do not buy, subscribe, or submit a form unless the user has approved that exact action."}],
+  "bots": [{"id":"comparison-helper","name":"Comparison helper","description":"A research bot for everyday decisions.","instructions":"Help the user compare options and choose confidently. Explain each step simply.","skillIds":["compare"],"tools":["web","browser"]}]
+}

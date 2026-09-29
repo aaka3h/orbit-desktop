@@ -19,7 +19,13 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+        if: runner.os == 'Linux'
+      - run: npx playwright-core install chromium
+        if: runner.os != 'Linux'
       - run: npm test
+        env:
+          ORBIT_BROWSER_REQUIRE: '1'
       - run: npm run dist -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -32,3 +38,23 @@ jobs:
             release/**/*.exe
             release/**/*.dmg
             release/**/*.zip
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+          merge-multiple: true
+      - name: Prepare release files and checksums
+        run: python3 scripts/release-assets.py
+      - name: Publish beta release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release-assets/* --title "Orbit $RELEASE_TAG (Beta)" --prerelease --verify-tag --notes-file "docs/releases/$RELEASE_TAG.md"

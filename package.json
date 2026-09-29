@@ -1,6 +1,6 @@
 {
   "name": "orbit-desktop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A local-first desktop AI workspace with approval-based tools.",
   "author": "Orbit contributors",
   "license": "MIT",
@@ -19,10 +19,13 @@
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
     "smoke": "node scripts/smoke.mjs",
-    "test:local": "tsx scripts/local-smoke.ts"
+    "test:local": "tsx scripts/local-smoke.ts",
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "test:capabilities": "node scripts/capabilities-smoke.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.577.0",
+    "playwright-core": "1.58.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
@@ -45,7 +48,7 @@
     "appId": "com.orbit.desktop",
     "productName": "Orbit",
     "directories": {
-      "output": "release/0.2.0"
+      "output": "release/0.3.0"
     },
     "files": [
       "dist/**/*",
@@ -55,8 +58,13 @@
     "asar": true,
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.productivity",
       "icon": "build/icon.icns"

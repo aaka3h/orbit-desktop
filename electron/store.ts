@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ProviderKind, Session, Settings } from '../shared/types';
 export class Store {
- settings:Settings={provider:{kind:'ollama',model:'qwen3:8b',baseUrl:'http://localhost:11434'},workspace:'',maxSteps:12,allowCommands:false,allowComputer:false,theme:'system',textSize:'normal',pythonPath:process.platform==='win32'?'python':'python3'};
+ settings:Settings={provider:{kind:'ollama',model:'qwen3:8b',baseUrl:'http://localhost:11434'},workspace:'',maxSteps:12,allowCommands:false,allowComputer:false,allowBrowser:false,browserChannel:'chrome',selectedBotId:'builtin:general',enabledSkillIds:[],enabledPluginIds:[],theme:'system',textSize:'normal',pythonPath:process.platform==='win32'?'python':'python3'};
  sessions:Session[]=[];
  private keys:Partial<Record<ProviderKind,string>>={};
  private encrypted:Partial<Record<ProviderKind,string>>={};

@@ -1,6 +1,6 @@
 # Orbit — a desktop AI assistant
 
-Orbit 0.2 includes a Hugging Face Model Hub, hardware fit estimates, readable text sizes, and system/light/dark themes. See [the update guide](UPDATES-0.2.md).
+Orbit 0.3 adds a separate Chrome/Edge browser, reusable skills, bot profiles and installable instruction plugins. Cloud models can operate these tools without a local model. See [the agent setup guide](docs/AGENTS-AND-SKILLS.md). The Hugging Face Hub, hardware estimates and appearance preferences remain available.
 
 Orbit is a working first version of a desktop agent for **macOS, Windows, and Linux**. It runs its tools on your computer. Choose a local model, an API provider, or the official Codex engine with ChatGPT sign-in.
 
@@ -8,18 +8,18 @@ It can inspect a folder, read and write text files, fetch web pages, run command
 
 ## Download and install
 
-1. Open the [**Orbit v0.2.0 beta release**](https://github.com/aaka3h/orbit-desktop/releases/tag/v0.2.0). Sign in with a GitHub account that has access to this private repository.
+1. Open the [**Orbit v0.3.0 beta release**](https://github.com/aaka3h/orbit-desktop/releases/tag/v0.3.0). Sign in with a GitHub account that has access to this private repository.
 2. Under **Assets**, download the app for your computer:
 
-   - **Linux x64:** [Orbit-0.2.0.AppImage](https://github.com/aaka3h/orbit-desktop/releases/download/v0.2.0/Orbit-0.2.0.AppImage)
-   - **Windows x64:** [Orbit-Setup-0.2.0.exe](https://github.com/aaka3h/orbit-desktop/releases/download/v0.2.0/Orbit-Setup-0.2.0.exe)
-   - **Mac, Apple Silicon:** [Orbit-0.2.0-arm64-mac.zip](https://github.com/aaka3h/orbit-desktop/releases/download/v0.2.0/Orbit-0.2.0-arm64-mac.zip)
-   - **Mac, Intel:** [Orbit-0.2.0-mac.zip](https://github.com/aaka3h/orbit-desktop/releases/download/v0.2.0/Orbit-0.2.0-mac.zip)
+   - **Linux x64:** [Orbit-0.3.0.AppImage](https://github.com/aaka3h/orbit-desktop/releases/download/v0.3.0/Orbit-0.3.0.AppImage)
+   - **Windows x64:** [Orbit-Setup-0.3.0.exe](https://github.com/aaka3h/orbit-desktop/releases/download/v0.3.0/Orbit-Setup-0.3.0.exe)
+   - **Mac, Apple Silicon:** [Orbit-0.3.0-arm64-mac.zip](https://github.com/aaka3h/orbit-desktop/releases/download/v0.3.0/Orbit-0.3.0-arm64-mac.zip)
+   - **Mac, Intel:** [Orbit-0.3.0-mac.zip](https://github.com/aaka3h/orbit-desktop/releases/download/v0.3.0/Orbit-0.3.0-mac.zip)
 
-3. Follow the [**beginner installation guide**](INSTALL.md) for your operating system. Packaged apps do not require Node.js or npm. GitHub's automatic **Source code** downloads and the optional **Orbit-0.2.0-source.zip** contain code, not an installed app.
+3. Follow the [**beginner installation guide**](INSTALL.md) for your operating system. Packaged apps do not require Node.js or npm. GitHub's automatic **Source code** downloads and the optional **Orbit-0.3.0-source.zip** contain code, not an installed app.
 4. For local AI, start Ollama, open Orbit's **Model Hub**, download a model that fits, select **Use this model**, and choose a workspace folder. The installation guide explains each step.
 
-These are **unsigned beta packages**; macOS packages are not notarized. Windows and macOS packages have not yet been tested on their native operating systems. The release also includes **SHA256SUMS.txt** for download verification.
+These are **unsigned beta packages**; macOS packages are not notarized. Native builds and automated tests are checked in CI. Interactive Windows/macOS installation and real provider-account tasks still need validation. The release also includes **SHA256SUMS.txt** for download verification.
 
 ## Screenshots
 
@@ -46,6 +46,8 @@ Model Hub shows detected hardware, available model files, download sizes, and me
 </details>
 
 These screenshots were captured from the running Linux desktop app.
+
+![Orbit bot profiles and skills](docs/screenshots/agents-skills.png)
 
 ## 1. Run from source (optional)
 
@@ -89,7 +91,7 @@ For LM Studio or another OpenAI-compatible server, select **OpenAI compatible**,
 For **Hugging Face Cloud**, select it in Settings and enter your HF access token with inference permission and a supported model ID. Public local model downloads do not need this token. Browser sign-in support requires the publisher's own registered HF OAuth client ID; this development build has no registered client and uses the token connection. Cloud inference may use paid credits.
 
 1. **OpenAI, Claude, or Gemini API:** select the provider, enter your own API key and an available model ID, test, then save. API usage may have separate billing; a chat subscription is not automatically an API key.
-2. **ChatGPT subscription:** install the [official Codex CLI](https://learn.chatgpt.com/docs/cli), then choose **ChatGPT subscription (Codex)** and sign in. Orbit uses the documented Codex App Server; Codex itself owns the login and tokens. The account must have supported Codex access. You can leave the model blank to use its default. This experimental integration uses Codex's own tools, a read-only sandbox, and surfaced approval requests. Its configured plugins and MCP integrations retain their own permission behavior. It is separate from Orbit's local/API tool loop. Codex may run trusted reads without asking; escalations appear for approval. Existing CLI configuration or version differences can affect availability.
+2. **ChatGPT subscription:** install the [official Codex CLI](https://learn.chatgpt.com/docs/cli), then choose **ChatGPT subscription (Codex)** and sign in. Orbit uses the documented Codex App Server; Codex itself owns the login and tokens. The account must have supported Codex access. You can leave the model blank to use its default. This experimental integration registers Orbit tools through the official dynamic-tool protocol and shares Orbit approvals. Native Codex tools retain a read-only sandbox with additional feature restrictions; remaining native reads or separately configured MCP integrations are outside Orbit bot tool limits. See [cloud account support and limitations](docs/cloud-accounts.md).
 3. **Claude subscription:** use the official, unmodified Claude Code application directly with its own sign-in. Orbit does not collect Claude subscription tokens or proxy them. Orbit's built-in Claude engine uses an API key.
 4. **Google subscription:** use Google's current official product directly. Orbit's integrated Gemini engine uses a Gemini API key. Consumer Gemini CLI access changed in 2026; do not assume an AI Pro/Ultra plan supplies third-party API access.
 
@@ -102,6 +104,13 @@ Official references, checked September 29, 2026:
 - [Google consumer CLI deprecation](https://developers.google.com/gemini-code-assist/docs/deprecations/code-assist-individuals), [Antigravity CLI](https://antigravity.google/docs/cli/install/), and [Antigravity terms](https://antigravity.google/terms).
 
 ## 5. Let Orbit use your computer
+
+1. Open **Agents & skills → Browser**, enable browser access, choose installed **Chrome** or **Edge**, and save.
+2. Click **Open browser** and sign in manually to any websites you need. This profile is separate from your personal browser.
+3. Choose **Shopping assistant** and ask, for example, “Compare three phones under my budget in my country; show sources and wait for my choice.”
+4. Review each browser action. Checkout and detected purchase actions use an extra purchase confirmation. Detection is conservative but cannot understand every website; inspect each target before approving.
+5. Create your own skill or bot, or import the [example plugin](examples/productivity.orbit-plugin.json). See [the complete guide](docs/AGENTS-AND-SKILLS.md).
+
 
 File tools work immediately after selecting a folder. Enable **Command access** for terminal tasks. Every command is shown for approval and starts in your workspace, but it runs with your account's permissions and can affect other folders too.
 
@@ -126,7 +135,7 @@ For optional mouse, keyboard, and screenshot tools:
 4. Select a vision-capable model and ask Orbit to take a screenshot before acting. Review each requested action. Orbit hides its own window briefly while observing or controlling the underlying app, then returns without taking focus.
 5. To interrupt, click **Stop**, press **Ctrl+Alt+Shift+O** (Cmd+Alt+Shift+O on macOS, if the OS allows registration), or move the pointer to a screen corner to trigger PyAutoGUI's fail-safe.
 
-This first version supports the primary monitor, clicks, ASCII typing, keys, shortcuts, scrolling, and screenshots. It does not include full browser DOM automation, background desktop sessions, voice, mobile control, or a bundled Python runtime. Avoid interacting with another application while an approved mouse/keyboard action executes. See [PyAutoGUI platform and monitor limits](https://pyautogui.readthedocs.io/en/latest/).
+This first version supports the primary monitor, clicks, ASCII typing, keys, shortcuts, scrolling, and screenshots. A separate Chrome/Edge DOM browser tool is available through **Agents & skills → Browser**; it needs no Python helper. Background desktop sessions, voice, mobile control and a bundled Python runtime are not included. Avoid interacting with another application while an approved mouse/keyboard action executes. See [PyAutoGUI platform and monitor limits](https://pyautogui.readthedocs.io/en/latest/).
 
 ## 6. Understand what stays local
 
@@ -145,11 +154,11 @@ npm run dist:win
 npm run dist:mac
 ```
 
-Build on the matching operating system for the most reliable result. Linux targets a portable AppImage; Windows targets an NSIS installer; macOS targets DMG and ZIP. Build outputs appear in `release/0.2.0/`.
+Build on the matching operating system for the most reliable result. Linux targets a portable AppImage; Windows targets an NSIS installer; macOS targets Intel and Apple Silicon ZIPs. Build outputs appear in `release/0.3.0/`.
 
 The Windows development installer does not edit or sign the executable. Configure signing and set `win.signAndEditExecutable` to `true` for a branded production release.
 
-The included `.github/workflows/build.yml` builds and tests on all three systems when manually run or when a `v*` tag is pushed. It does not publish artifacts automatically.
+The included `.github/workflows/build.yml` builds and tests on all three systems when manually run or when a `v*` tag is pushed. A tagged build publishes a beta release only after all three platform jobs succeed. Manual builds upload workflow artifacts without publishing a release.
 
 Release signing and macOS notarization require the owner's certificates. The supplied development builds are unsigned. Build configuration alone is not evidence that an app has been tested on every platform.
 
