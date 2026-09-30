@@ -8,7 +8,7 @@ It can inspect a folder, read and write text files, fetch web pages, run command
 
 ## Download and install
 
-1. Open the [**Orbit v0.3.0 beta release**](https://github.com/aaka3h/orbit-desktop/releases/tag/v0.3.0). Sign in with a GitHub account that has access to this private repository.
+1. Open the [**Orbit v0.3.0 beta release**](https://github.com/aaka3h/orbit-desktop/releases/tag/v0.3.0). The repository and release downloads are public; no GitHub sign-in is required.
 2. Under **Assets**, download the app for your computer:
 
    - **Linux x64:** [Orbit-0.3.0.AppImage](https://github.com/aaka3h/orbit-desktop/releases/download/v0.3.0/Orbit-0.3.0.AppImage)

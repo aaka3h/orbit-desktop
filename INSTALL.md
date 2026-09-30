@@ -8,7 +8,7 @@ You do not need Node.js or npm to use a packaged Orbit app. Local AI models requ
 
 ## 1. Download the right file
 
-1. Sign in to GitHub with an account that has access to **aaka3h/orbit-desktop**. This repository is private, so its release files also require access. If GitHub shows **404**, check your account and ask the repository owner for access.
+1. Orbit is available from the public **aaka3h/orbit-desktop** repository. You can view the code and download release files without signing in to GitHub.
 2. Open the [Orbit v0.3.0 beta release](https://github.com/aaka3h/orbit-desktop/releases/tag/v0.3.0) and expand **Assets**. This is where the ready-to-use app packages are listed.
 3. Choose the file for your computer:
 
