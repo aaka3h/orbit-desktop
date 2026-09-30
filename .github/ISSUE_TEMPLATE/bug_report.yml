@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a problem you can reproduce in Orbit.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem below. Remove API keys, tokens, passwords, and private information from logs and screenshots.
+  - type: input
+    id: app_version
+    attributes:
+      label: Orbit version
+      description: Enter the installed version or the commit if running from source.
+      placeholder: v0.3.0 or commit hash
+    validations:
+      required: true
+  - type: dropdown
+    id: operating_system
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version or Linux distribution
+      placeholder: Windows 11, macOS 15, or Ubuntu 24.04
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and model (optional)
+      description: Include names only. Never include API keys or account credentials.
+      placeholder: Ollama with qwen3:8b, or OpenAI with your selected model
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the smallest example that triggers the problem.
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. Run...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include the exact error message if available.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots (optional)
+      description: Add relevant evidence after removing secrets and personal information.

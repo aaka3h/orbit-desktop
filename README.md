@@ -6,6 +6,12 @@ Orbit is a working first version of a desktop agent for **macOS, Windows, and Li
 
 It can inspect a folder, read and write text files, fetch web pages, run commands, and optionally use your mouse, keyboard, and screenshots. Its abilities depend on the model, installed tools, operating-system permissions, and your approvals. It does not promise to perform every possible task.
 
+## Help build Orbit
+
+1. [Read the beginner contribution guide](CONTRIBUTING.md) to set up a fork, run the app and tests, and propose a focused change. The demo and unit tests need no API key.
+2. [Report a reproducible bug or suggest an improvement](https://github.com/aaka3h/orbit-desktop/issues/new/choose). Documentation, operating-system bug reports, tests, translation suggestions, and accessibility improvements are all useful contributions.
+3. [Open a pull request](https://github.com/aaka3h/orbit-desktop/pulls) against `main`. Maintainers review contributions before merging; your fork lets you work without changing the main project directly.
+
 ## Download and install
 
 1. Open the [**Orbit v0.3.0 beta release**](https://github.com/aaka3h/orbit-desktop/releases/tag/v0.3.0). The repository and release downloads are public; no GitHub sign-in is required.

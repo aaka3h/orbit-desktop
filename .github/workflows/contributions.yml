@@ -1,0 +1,46 @@
+name: Contributor checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contributor-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Test and build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Install test browser on Linux
+        if: runner.os == 'Linux'
+        run: npx playwright-core install --with-deps chromium
+      - name: Install test browser on Windows or macOS
+        if: runner.os != 'Linux'
+        run: npx playwright-core install chromium
+      - name: Run automated tests
+        run: npm test
+        env:
+          ORBIT_BROWSER_REQUIRE: '1'
+      - name: Typecheck and compile the desktop app
+        run: npm run build
